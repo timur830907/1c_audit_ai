@@ -24,7 +24,9 @@ def read_root():
 @app.post("/api/v1/generate-audit-report")
 async def generate_report(data: AuditRequest):
     try:
-        report_text = generate_audit_explanation(data.dict())
+        # Для Pydantic v2 используем model_dump() с фоллбэком на dict()
+        payload = data.model_dump() if hasattr(data, "model_dump") else data.dict()
+        report_text = generate_audit_explanation(payload)
         return {
             "status": "success",
             "risk_score": data.risk_score,

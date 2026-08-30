@@ -1,14 +1,12 @@
 import os
 from openai import OpenAI
 
-def get_client():
+def generate_audit_explanation(audit_data: dict) -> str:
     api_key = os.getenv("OPENAI_API_KEY")
     if not api_key:
-        raise ValueError("OPENAI_API_KEY environment variable is not set")
-    return OpenAI(api_key=api_key)
-
-def generate_audit_explanation(audit_data: dict) -> str:
-    client = get_client()
+        raise ValueError("Переменная OPENAI_API_KEY не установлена на сервере")
+    
+    client = OpenAI(api_key=api_key)
     
     prompt = f"""
     Вы — старший аудитор Государственного аудита Республики Казахстан.
