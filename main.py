@@ -1,32 +1,34 @@
+import os
 from fastapi import FastAPI, HTTPException
-from pydantic import BaseModel
-from dotenv import load_dotenv
-from llm_service import generate_report_from_llm
-
-load_dotenv()
+from pydantic import BaseModel, Field
+from llm_service import generate_audit_explanation
 
 app = FastAPI(
     title="1C Audit AI Engine",
-    description="Микросервис RAG + LLM для генерации аудиторских заключений 1С",
+    description="Микросервис ИИ-анализа транзакций для 1С:Предприятие",
     version="1.0.0"
 )
 
 class AuditRequest(BaseModel):
-    doc_ids: str
-    vendor_bin: str
-    total_amount_kzt: float
-    total_amount_mrp: float
-    interval_hours: float
-    risk_score: float
+    doc_ids: str = Field(..., example="PA-20260022, PA-20260023")
+    vendor_bin: str = Field(..., example="999111222333")
+    total_amount_kzt: float = Field(..., example=1210000.00)
+    total_amount_mrp: float = Field(..., example=289.3)
+    interval_hours: float = Field(..., example=3.0)
+    risk_score: float = Field(..., example=0.94)
+
+@app.get("/")
+def read_root():
+    return {"status": "ok", "message": "1C Audit AI Engine is running"}
 
 @app.post("/api/v1/generate-audit-report")
-async def generate_audit_report(payload: AuditRequest):
+async def generate_report(data: AuditRequest):
     try:
-        data_dict = payload.model_dump()
-        report_text = generate_report_from_llm(data_dict)
+        report_text = generate_audit_explanation(data.dict())
         return {
             "status": "success",
+            "risk_score": data.risk_score,
             "report": report_text
         }
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Ошибка обработки: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))

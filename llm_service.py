@@ -1,59 +1,36 @@
 import os
 from openai import OpenAI
-from dotenv import load_dotenv
-from rag_engine import retrieve_relevant_laws
 
-# Подгружаем переменные из .env
-load_dotenv()
+def get_client():
+    api_key = os.getenv("OPENAI_API_KEY")
+    if not api_key:
+        raise ValueError("OPENAI_API_KEY environment variable is not set")
+    return OpenAI(api_key=api_key)
 
-def generate_report_from_llm(data: dict) -> str:
-    # Инициализируем клиент внутри функции с актуальным API-ключом
-    client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
-
-    # 1. Сбор контекста и поиск НПА
-    anomaly_description = (
-        f"Выявлена серия транзакций контрагенту {data['vendor_bin']} "
-        f"на общую сумму {data['total_amount_mrp']:.1f} МРП с интервалом {data['interval_hours']:.1f} часов."
-    )
+def generate_audit_explanation(audit_data: dict) -> str:
+    client = get_client()
     
-    relevant_laws = retrieve_relevant_laws(anomaly_description + " дробление 100 МРП")
-    laws_context = "\n\n".join([
-        f"--- {law['doc_name']}, {law['article']} ---\n{law['text']}"
-        for law in relevant_laws
-    ])
+    prompt = f"""
+    Вы — старший аудитор Государственного аудита Республики Казахстан.
+    Проанализируйте следующую аномальную транзакцию, выявленную алгоритмом XGBoost:
     
-    # 2. Промпты
-    system_prompt = (
-        "Вы — Высший государственный аудитор Республики Казахстан. "
-        "Ваша задача — составить формализованный проект раздела Аудиторского отчета (Акта) "
-        "на основе данных ИИ-сканера 1С и выдержек из законодательства РК. "
-        "Ответ должен быть строго официальным, содержать описание нарушения, ссылки на НПА РК и рекомендации."
-    )
-
-    user_prompt = f"""
-ДАННЫЕ АНОМАЛЬНОЙ ОПЕРАЦИИ ИЗ 1С:
-- Документ/Серия: {data['doc_ids']}
-- БИН Поставщика: {data['vendor_bin']}
-- Сумма платежей: {data['total_amount_kzt']:,.2f} KZT ({data['total_amount_mrp']:.1f} МРП)
-- Интервал между платежами: {data['interval_hours']:.1f} ч.
-- Оценка риска XGBoost: {data['risk_score'] * 100:.1f}%
-
-РЕЛЕВАНТНЫЕ СТАТЬИ НПА РК:
-{laws_context}
-
-СФОРМУЛИРУЙТЕ АУДИТОРСКОЕ ЗАКЛЮЧЕНИЕ:
-1. Описание факта нарушения (Указать БИН, суммы и схему).
-2. Правовая квалификация (Какая статья какого закона РК нарушена).
-3. Риски и ответственность (Ссылка на КоАП РК при наличии).
-4. Рекомендация аудитора.
-"""
-
-    # 3. Вызов API
+    - Идентификаторы документов: {audit_data.get('doc_ids')}
+    - БИН поставщика: {audit_data.get('vendor_bin')}
+    - Общая сумма: {audit_data.get('total_amount_kzt')} KZT ({audit_data.get('total_amount_mrp')} МРП)
+    - Временной интервал между платежами: {audit_data.get('interval_hours')} часов
+    - Оценка риска ML: {audit_data.get('risk_score')}
+    
+    Задачи:
+    1. Оцените риск искусственного дробления государственных закупок с целью ухода от открытого конкурса (Закон РК 'О государственных закупках').
+    2. Укажите конкретные статьи законодательства РК, которые могли быть нарушены.
+    3. Сформируйте краткое и четкое аудиторское заключение с рекомендацией по проверке для бухгалтера/аудитора.
+    """
+    
     response = client.chat.completions.create(
         model="gpt-4o-mini",
         messages=[
-            {"role": "system", "content": system_prompt},
-            {"role": "user", "content": user_prompt}
+            {"role": "system", "content": "Вы — эксперт по финансовому аудиту и госзакупкам РК."},
+            {"role": "user", "content": prompt}
         ],
         temperature=0.2
     )
