@@ -1,9 +1,7 @@
+import traceback
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
-from typing import Optional
-import traceback
 
-# Импортируем функцию генерации отчета из llm_service
 from llm_service import generate_audit_explanation
 
 app = FastAPI(
@@ -34,10 +32,7 @@ def read_root():
 @app.post("/api/v1/generate-audit-report")
 async def generate_report(data: AuditRequest):
     try:
-        # Поддержка Pydantic v1 и v2
         payload = data.model_dump() if hasattr(data, "model_dump") else data.dict()
-        
-        # Вызов функции обращения к OpenAI / LLM
         report_text = generate_audit_explanation(payload)
         
         return {
