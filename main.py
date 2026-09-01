@@ -1,6 +1,9 @@
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
+from typing import List
+import asyncio
+
 from llm_service import generate_audit_explanation
 
 app = FastAPI(
@@ -9,7 +12,6 @@ app = FastAPI(
     version="1.0.0"
 )
 
-# Схема входящих данных от 1С / Клиента
 class AuditRequest(BaseModel):
     doc_ids: str
     vendor_bin: str
@@ -18,6 +20,9 @@ class AuditRequest(BaseModel):
     interval_hours: float
     risk_score: float
 
+class BatchAuditRequest(BaseModel):
+    items: List[AuditRequest]
+
 @app.get("/")
 async def root():
     return {"status": "online", "message": "1C Audit AI Microservice is running"}
@@ -25,18 +30,39 @@ async def root():
 @app.post("/api/v1/generate-audit-report")
 async def audit_endpoint(request: AuditRequest):
     try:
-        # Преобразуем Pydantic-модель в обычный словарь
         audit_data = request.model_dump()
-        
-        # Генерируем отчет с использованием RAG и Gemini
         report_text = generate_audit_explanation(audit_data)
         
-        # Возвращаем JSONResponse с явным указанием UTF-8
         return JSONResponse(
             content={
                 "status": "success",
                 "risk_score": request.risk_score,
                 "report": report_text
+            },
+            headers={"Content-Type": "application/json; charset=utf-8"}
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/v1/generate-batch-report")
+async def batch_audit_endpoint(batch_request: BatchAuditRequest):
+    try:
+        results = []
+        for item in batch_request.items:
+            audit_data = item.model_dump()
+            report_text = generate_audit_explanation(audit_data)
+            results.append({
+                "doc_ids": item.doc_ids,
+                "vendor_bin": item.vendor_bin,
+                "risk_score": item.risk_score,
+                "report": report_text
+            })
+            
+        return JSONResponse(
+            content={
+                "status": "success",
+                "total_processed": len(results),
+                "items": results
             },
             headers={"Content-Type": "application/json; charset=utf-8"}
         )
