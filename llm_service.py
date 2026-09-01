@@ -6,7 +6,7 @@ def generate_audit_explanation(audit_data: dict) -> str:
     if not api_key:
         raise ValueError("GEMINI_API_KEY не установлен в переменной окружения Render")
 
-    # Инициализация клиента Gemini
+    # Инициализация официального SDK клиентом
     client = genai.Client(api_key=api_key)
 
     prompt = f"""
@@ -25,7 +25,7 @@ def generate_audit_explanation(audit_data: dict) -> str:
     """
 
     response = client.models.generate_content(
-        model='gemini-1.5-flash',
+        model='gemini-2.5-flash',
         contents=prompt
     )
 
